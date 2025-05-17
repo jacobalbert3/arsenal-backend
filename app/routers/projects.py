@@ -6,18 +6,19 @@ from app.models.project import projects
 from app.models.learnings import learnings
 from app.auth.deps import get_current_user_id
 from fastapi import Depends
+from typing import Optional
 
 router = APIRouter()
 
 # Pydantic models
 class ProjectIn(BaseModel):
     name: str
-    github_repo: str | None = None
+    github_repo: Optional[str] = None
 
 class LearningIn(BaseModel):
     file_path: str
-    function_name: str | None = None
-    library_name: str | None = None
+    function_name: Optional[str] = None
+    library_name: Optional[str] = None
     description: str
     code_snippet: str
 

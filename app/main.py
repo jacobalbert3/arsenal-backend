@@ -4,13 +4,23 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db import database
 from app.routers import projects, learnings, favorites, auth, rag
+from app.middleware.security import SecurityHeadersMiddleware
 from dotenv import load_dotenv
+import os
+from datetime import datetime
+from app.middleware.rate_limit import RateLimitMiddleware
 
 app = FastAPI()
 
 load_dotenv()
 
-# 👇 Allow requests from your Next.js frontend
+# Add security headers middleware BEFORE CORS
+app.add_middleware(SecurityHeadersMiddleware)
+
+# Add rate limiting middleware
+app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
+
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -38,3 +48,22 @@ app.include_router(learnings.router)
 app.include_router(favorites.router)
 app.include_router(auth.router, prefix="/auth")
 app.include_router(rag.router)
+
+@app.get("/health")
+async def health_check():
+    try:
+        # Check database connection
+        await database.fetch_one("SELECT 1")
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+
+port = int(os.getenv("PORT", 8000))

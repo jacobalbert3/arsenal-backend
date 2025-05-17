@@ -1,25 +1,49 @@
 # test_seed_learnings.py
 # ✅ Script to insert a user and 50 *unique* realistic learnings into your Postgres DB with embeddings
 
+import os
 import psycopg2
 from psycopg2.extras import execute_values
 from sentence_transformers import SentenceTransformer
 import hashlib
 import getpass
 from passlib.hash import bcrypt
+from dotenv import load_dotenv
+from urllib.parse import urlparse
+
+load_dotenv()
 
 # Configuration
 EMAIL = "test@test.com"
 PASSWORD = "123456"
 VECTOR_DIM = 384
 
-DB_CONFIG = dict(
-    dbname="arsenal_db",
-    user=getpass.getuser(),
-    password="",
-    host="localhost",
-    port="5432"
-)
+# Get database configuration based on environment
+def get_db_config():
+    database_url = os.getenv("DATABASE_URL", f"postgresql://localhost/arsenal_db")
+    
+    if "localhost" in database_url:
+        return {
+            "dbname": "arsenal_db",
+            "user": getpass.getuser(),
+            "password": "",
+            "host": "localhost",
+            "port": "5432"
+        }
+    else:
+        # Parse Railway's DATABASE_URL
+        url = urlparse(database_url)
+        return {
+            "dbname": url.path[1:],  # Remove leading slash
+            "user": url.username,
+            "password": url.password,
+            "host": url.hostname,
+            "port": url.port,
+            "sslmode": "require"  # Required for Railway
+        }
+
+# Get DB configuration
+DB_CONFIG = get_db_config()
 
 model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
@@ -56,7 +80,7 @@ learnings = [
     ("Deployed static site with GitHub Pages", "npm run build && npx gh-pages -d dist", "deploySite", "gh-pages", "/scripts/deploy.js"),
     ("Connected Docker container to Postgres DB", "DB_HOST=host.docker.internal", "dockerConfig", "docker", "/docker-compose.yml"),
     ("Used ternary expression in JSX", "{isLoggedIn ? <Dashboard /> : <Login />}", "ConditionalUI", "react", "/components/AuthGate.tsx"),
-    ("Built dropdown using headless UI", "<Listbox value={selected} onChange={setSelected}>...</Listbox>", "CustomDropdown", "@headlessui/react", "/components/Dropdown.tsx"),
+    ("Built dropdown using headless UI", "<Listbox value={selected} onChange={setSelected}>...</Listbox>", "CustomDropdown", "headlessuit", "/components/Dropdown.tsx"),
     ("Set up lazy loading with React.lazy", "const LazyPage = React.lazy(() => import('./Page'))", "LazyPage", "react", "/pages/LazyPage.tsx"),
     ("Used SWR for stale-while-revalidate data fetch", "const { data } = useSWR('/api/user', fetcher)", "useUser", "swr", "/hooks/useUser.ts"),
     ("Added scroll animations with Framer Motion", "<motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} />", "AnimatedSection", "framer-motion", "/components/Section.tsx"),

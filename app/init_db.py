@@ -1,5 +1,5 @@
+import os
 from sqlalchemy import create_engine, text, Index
-from app.db import database
 from app.models import metadata
 from app.models.project import projects
 from app.models.learnings import learnings
@@ -7,43 +7,51 @@ from app.models.favorites import favorites
 from app.models.users import users
 from app.models.api_keys import api_keys
 from app.models.usage_limits import usage_limits
-import getpass
 
-# Automatically use your actual macOS user for Postgres
-DATABASE_URL = f"postgresql://{getpass.getuser()}@localhost/arsenal_db"
-engine = create_engine(DATABASE_URL)
+def initialize_db():
+    ENV = os.getenv("ENV", "local")
 
-# ✅ 1. Enable pgvector BEFORE table creation
-with engine.begin() as conn:  # 🚨 MUST be engine.begin() not connect()
-    try:
+    if ENV == "production":
+        DATABASE_URL = os.getenv("DATABASE_URL")
+        if not DATABASE_URL:
+            raise RuntimeError("❌ DATABASE_URL not set for production")
+    else:
+        DATABASE_URL = "postgresql://postgres@localhost/arsenal_db"
+
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    print(f"🔧 Initializing DB in {ENV} mode...")
+
+    # Enable pgvector
+    with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
         print("✅ pgvector extension enabled.")
-    except Exception as e:
-        print("❌ Failed to create pgvector extension.")
-        raise e
 
-# ✅ 2. Drop and recreate all tables
-metadata.drop_all(engine)
-metadata.create_all(engine)
-print("✅ Tables created.")
+    # WARNING: Only drop tables in local!
+    if ENV != "production":
+        print("⚠️ Dropping and recreating tables (local only)...")
+        metadata.drop_all(engine)
+        metadata.create_all(engine)
+    else:
+        print("✅ Skipping drop/create in production.")
 
-# ✅ 3. Create indexes AFTER tables exist
-Index('idx_api_keys_token', api_keys.c.token, unique=True).create(bind=engine)
-Index('idx_api_keys_user_project', api_keys.c.user_id, api_keys.c.project_id).create(bind=engine)
-Index('idx_learnings_project', learnings.c.project_id).create(bind=engine)
-Index('idx_learnings_user', learnings.c.user_id).create(bind=engine)
-Index('idx_favorites_user', favorites.c.user_id).create(bind=engine)
-Index('idx_projects_user', projects.c.user_id).create(bind=engine)
-print("✅ Standard indexes created.")
+    # Create indexes
+    Index('idx_api_keys_token', api_keys.c.token, unique=True).create(bind=engine)
+    Index('idx_api_keys_user_project', api_keys.c.user_id, api_keys.c.project_id).create(bind=engine)
+    Index('idx_learnings_project', learnings.c.project_id).create(bind=engine)
+    Index('idx_learnings_user', learnings.c.user_id).create(bind=engine)
+    Index('idx_favorites_user', favorites.c.user_id).create(bind=engine)
+    Index('idx_projects_user', projects.c.user_id).create(bind=engine)
 
-# ✅ 4. Now create the vector index on learnings table
-with engine.connect() as conn:
-    conn.execute(text("""
-        CREATE INDEX IF NOT EXISTS idx_learnings_embedding
-        ON learnings
-        USING ivfflat (embedding vector_cosine_ops)
-        WITH (lists = 100);
-    """))
-print("✅ Vector index created.")
+    with engine.begin() as conn:
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS idx_learnings_embedding
+            ON learnings
+            USING ivfflat (embedding vector_cosine_ops)
+            WITH (lists = 100);
+        """))
 
-print("✅ Arsenal DB initialized.")
+    print("🎉 Arsenal DB initialized.")
+
+# 🔹 Only run if executed directly
+if __name__ == "__main__":
+    initialize_db()

@@ -1,10 +1,13 @@
-# app/services/embedder.py
-from sentence_transformers import SentenceTransformer
+from openai import AsyncOpenAI
+import os
+from dotenv import load_dotenv
 
-# Load once at startup
-model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+load_dotenv()
+client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def embed(text: str) -> list[float]:
-    # Directly encode the text without instruction
-    return model.encode(text).tolist()
-
+async def embed(text: str) -> list[float]:
+    response = await client.embeddings.create(
+        model="text-embedding-3-small",
+        input=text
+    )
+    return response.data[0].embedding
