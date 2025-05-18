@@ -7,6 +7,7 @@ from app.models.favorites import favorites
 from app.models.users import users
 from app.models.api_keys import api_keys
 from app.models.usage_limits import usage_limits
+from urllib.parse import urlparse
 
 def initialize_db():
     ENV = os.getenv("ENV", "local")
@@ -15,6 +16,9 @@ def initialize_db():
         DATABASE_URL = os.getenv("DATABASE_URL")
         if not DATABASE_URL:
             raise RuntimeError("❌ DATABASE_URL not set for production")
+        # Add SSL mode for Railway
+        url = urlparse(DATABASE_URL)
+        DATABASE_URL = f"{url.scheme}://{url.netloc}{url.path}?sslmode=require"
     else:
         DATABASE_URL = "postgresql://postgres@localhost/arsenal_db"
 
