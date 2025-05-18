@@ -23,10 +23,19 @@ def initialize_db():
     print(f"🔌 Connecting to: {PUBLIC_DATABASE_URL}")
     
     url = urlparse(PUBLIC_DATABASE_URL)
-    DATABASE_URL = f"{url.scheme}://{url.netloc}{url.path}?sslmode=require"
+    # Try without SSL first
+    DATABASE_URL = f"{url.scheme}://{url.netloc}{url.path}"
     
     print("🔧 Creating engine...")
-    engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+    engine = create_engine(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        pool_size=5,
+        max_overflow=10,
+        connect_args={
+            "connect_timeout": 30
+        }
+    )
 
     try:
         print("🔍 Testing connection...")
@@ -41,8 +50,9 @@ def initialize_db():
 
         # WARNING: Only drop tables in local!
         
-        print("✅ Creating tables if they don't exist...")
+        print("📦 Creating tables...")
         metadata.create_all(engine)
+        print("✅ Tables created successfully!")
 
         # Create indexes
         Index('idx_api_keys_token', api_keys.c.token, unique=True).create(bind=engine)
@@ -60,7 +70,7 @@ def initialize_db():
                 WITH (lists = 100);
             """))
 
-        print("🎉 Arsenal DB initialized.")
+        print("🎉 Database initialization complete!")
         
     except Exception as e:
         print(f"❌ Error initializing database: {str(e)}")

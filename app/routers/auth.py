@@ -23,29 +23,31 @@ class ApiKeyRequest(BaseModel):
 
 @router.post("/signup")
 async def signup(data: dict):
-    email = data.get("email")
-    password = data.get("password")
+    try:
+        email = data.get("email")
+        password = data.get("password")
 
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password required")
+        if not email or not password:
+            raise HTTPException(status_code=400, detail="Email and password required")
 
-    existing = await database.fetch_one(users.select().where(users.c.email == email))
-    if existing:
-        raise HTTPException(status_code=400, detail="User already exists")
+        existing = await database.fetch_one(users.select().where(users.c.email == email))
+        if existing:
+            raise HTTPException(status_code=400, detail="User already exists")
 
-    hashed_password = bcrypt.hash(password)
-
-    query = users.insert().values(email=email, password=hashed_password)
-    user_id = await database.execute(query)
-    
-    # Create access token after signup
-    access_token = create_access_token({"sub": str(user_id)})
-    
-    return {
-        "message": "User created",
-        "user_id": user_id,
-        "access_token": access_token
-    }
+        hashed_password = bcrypt.hash(password)
+        query = users.insert().values(email=email, password=hashed_password)
+        user_id = await database.execute(query)
+        
+        access_token = create_access_token({"sub": str(user_id)})
+        
+        return {
+            "message": "User created",
+            "user_id": user_id,
+            "access_token": access_token
+        }
+    except Exception as e:
+        print(f"Signup error: {str(e)}")  # This will log to Railway logs
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/login")
