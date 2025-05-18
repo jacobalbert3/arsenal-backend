@@ -127,7 +127,7 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
         
     # Get embeddings for the query
     try:
-        query_vector = embed(request.query)
+        query_vector = await embed(request.query)
     except Exception as e:
         logger.error(f"Embedding generation failed: {e}")
         raise HTTPException(status_code=500, detail="Failed to process query")

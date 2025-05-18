@@ -9,24 +9,18 @@ from app.models.api_keys import api_keys
 from app.models.usage_limits import usage_limits
 from urllib.parse import urlparse
 from dotenv import load_dotenv
+import getpass
 
 # Load environment variables from .env file
 load_dotenv()
 
 def initialize_db():
-    PUBLIC_DATABASE_URL = os.getenv("PUBLIC_DATABASE_URL")
-    
-    if not PUBLIC_DATABASE_URL:
-        print("❌ PUBLIC_DATABASE_URL not set in environment")
-        return
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        DATABASE_URL = f"postgresql://{getpass.getuser()}@localhost/arsenal_db"
+    print(DATABASE_URL)
 
-    print(f"🔌 Connecting to: {PUBLIC_DATABASE_URL}")
-    
-    url = urlparse(PUBLIC_DATABASE_URL)
-    # Try without SSL first
-    DATABASE_URL = f"{url.scheme}://{url.netloc}{url.path}"
-    
-    print("🔧 Creating engine...")
+    # Create engine with SSL required for Railway
     engine = create_engine(
         DATABASE_URL,
         pool_pre_ping=True,
@@ -51,6 +45,7 @@ def initialize_db():
         # WARNING: Only drop tables in local!
         
         print("📦 Creating tables...")
+        metadata.drop_all(engine)
         metadata.create_all(engine)
         print("✅ Tables created successfully!")
 

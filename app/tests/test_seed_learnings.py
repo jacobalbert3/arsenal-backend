@@ -1,52 +1,59 @@
 # test_seed_learnings.py
-# ✅ Script to insert a user and 50 *unique* realistic learnings into your Postgres DB with embeddings
+# ✅ Script to insert a user and 50 learnings into Railway Postgres DB with OpenAI embeddings
 
 import os
 import psycopg2
 from psycopg2.extras import execute_values
-from sentence_transformers import SentenceTransformer
-import hashlib
-import getpass
+from openai import OpenAI
+import numpy as np
 from passlib.hash import bcrypt
 from dotenv import load_dotenv
 from urllib.parse import urlparse
+import time
+import getpass
 
 load_dotenv()
 
 # Configuration
 EMAIL = "test@test.com"
 PASSWORD = "123456"
-VECTOR_DIM = 384
+VECTOR_DIM = 1536  # OpenAI ada-002 dimension
+
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def get_embedding(text):
+    # Add retry logic for API rate limits
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=text
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise e
+            time.sleep(2 ** attempt)  # Exponential backoff
 
 # Get database configuration based on environment
 def get_db_config():
-    database_url = os.getenv("DATABASE_URL", f"postgresql://localhost/arsenal_db")
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        database_url = f"postgresql://{getpass.getuser()}@localhost/arsenal_db"
+  
     
-    if "localhost" in database_url:
-        return {
-            "dbname": "arsenal_db",
-            "user": getpass.getuser(),
-            "password": "",
-            "host": "localhost",
-            "port": "5432"
-        }
-    else:
-        # Parse Railway's DATABASE_URL
-        url = urlparse(database_url)
-        return {
-            "dbname": url.path[1:],  # Remove leading slash
-            "user": url.username,
-            "password": url.password,
-            "host": url.hostname,
-            "port": url.port,
-            "sslmode": "require"  # Required for Railway
-        }
+    url = urlparse(database_url)
+    return {
+        "dbname": url.path[1:],  # Remove leading slash
+        "user": url.username,
+        "password": url.password,
+        "host": url.hostname,
+        "port": url.port # Required for Railway
+    }
 
-# Get DB configuration
-DB_CONFIG = get_db_config()
-
-model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-
+# Your existing learnings list remains the same
 learnings = [
     ("Used useEffect to fetch user profile on mount", "useEffect(() => { axios.get('/api/profile').then(res => setUser(res.data)); }, []);", "useEffect", "axios", "/pages/profile.tsx"),
     ("Built REST API with FastAPI for task management", "@app.post('/tasks')\ndef create_task(task: Task):\n    db.save(task)", "create_task", "fastapi", "/api/tasks.py"),
@@ -99,43 +106,67 @@ learnings = [
     ("Implemented infinite scroll with IntersectionObserver", "useEffect(() => { const observer = new IntersectionObserver(...) })", "useInfiniteScroll", "react", "/hooks/useInfiniteScroll.ts")
 ]
 
-# DB connection
-conn = psycopg2.connect(**DB_CONFIG)
-cur = conn.cursor()
+def main():
+    try:
+        # Get DB configuration
+        DB_CONFIG = get_db_config()
+        
+        # Connect to Railway Postgres
+        print("Connecting to Railway Postgres...")
+        conn = psycopg2.connect(**DB_CONFIG)
+        cur = conn.cursor()
+        
+        print("Cleaning up existing test data...")
+        # Remove if already exists
+        cur.execute("DELETE FROM learnings WHERE user_id IN (SELECT id FROM users WHERE email = %s)", (EMAIL,))
+        cur.execute("DELETE FROM projects WHERE user_id IN (SELECT id FROM users WHERE email = %s)", (EMAIL,))
+        cur.execute("DELETE FROM users WHERE email = %s", (EMAIL,))
+        conn.commit()
+        
+        print("Creating test user...")
+        # Create test user
+        cur.execute(
+            "INSERT INTO users (email, password) VALUES (%s, %s) RETURNING id",
+            (EMAIL, bcrypt.hash(PASSWORD))
+        )
+        user_id = cur.fetchone()[0]
+        
+        print("Creating test project...")
+        # Create test project
+        cur.execute(
+            "INSERT INTO projects (user_id, name) VALUES (%s, %s) RETURNING id",
+            (user_id, "Test Project")
+        )
+        project_id = cur.fetchone()[0]
+        
+        print("Generating embeddings and inserting learnings...")
+        # Embed and insert learnings
+        entries = []
+        for i, (desc, code, func, lib, path) in enumerate(learnings, 1):
+            print(f"Processing learning {i}/{len(learnings)}...")
+            vec = get_embedding(desc)
+            entries.append((project_id, path, func, lib, desc, code, user_id, vec))
+            
+            # Batch process in groups of 10 to avoid rate limits
+            if i % 10 == 0:
+                time.sleep(2)
+        
+        execute_values(cur, """
+            INSERT INTO learnings (project_id, file_path, function_name, library_name, description, code_snippet, user_id, embedding)
+            VALUES %s
+        """, entries)
+        
+        conn.commit()
+        print("✅ Test user and learnings inserted successfully into Railway Postgres!")
+        
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        raise
+    finally:
+        if 'cur' in locals():
+            cur.close()
+        if 'conn' in locals():
+            conn.close()
 
-def hash_password(password):
-    return bcrypt.hash(password)
-
-# Remove if already exists
-cur.execute("DELETE FROM learnings WHERE user_id IN (SELECT id FROM users WHERE email = %s)", (EMAIL,))
-cur.execute("DELETE FROM projects WHERE user_id IN (SELECT id FROM users WHERE email = %s)", (EMAIL,))
-cur.execute("DELETE FROM users WHERE email = %s", (EMAIL,))
-conn.commit()
-
-# Create test user
-cur.execute("INSERT INTO users (email, password) VALUES (%s, %s) RETURNING id", (EMAIL, hash_password(PASSWORD)))
-user_id = cur.fetchone()[0]
-
-# Create test project
-cur.execute("INSERT INTO projects (user_id, name) VALUES (%s, %s) RETURNING id", (user_id, "Test Project"))
-project_id = cur.fetchone()[0]
-
-# Clear old learnings
-cur.execute("DELETE FROM learnings WHERE user_id = %s", (user_id,))
-
-# Embed and insert learnings
-entries = []
-for desc, code, func, lib, path in learnings:
-    vec = model.encode(desc).tolist()
-    entries.append((project_id, path, func, lib, desc, code, user_id, vec))
-
-execute_values(cur, """
-    INSERT INTO learnings (project_id, file_path, function_name, library_name, description, code_snippet, user_id, embedding)
-    VALUES %s
-""", entries)
-
-conn.commit()
-cur.close()
-conn.close()
-
-print("✅ Test user and 50 learnings inserted successfully.")
+if __name__ == "__main__":
+    main()

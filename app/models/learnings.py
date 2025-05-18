@@ -16,5 +16,5 @@ learnings = Table(
     Column("description", Text, nullable=False),
     Column("code_snippet", Text, nullable=False),
     Column("user_id", Integer, nullable=False),
-    Column("embedding", Vector(384), nullable=True),
+    Column("embedding", Vector(1536), nullable=True),
 )

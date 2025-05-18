@@ -18,16 +18,26 @@ load_dotenv()
 app.add_middleware(SecurityHeadersMiddleware)
 
 # Add rate limiting middleware
-app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
+#app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
 
-# CORS middleware
+# CORS middlewarewa
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=[
+#         "https://arsenal-azure.vercel.app",
+#         "https://arsenal-os2t98dib-jacobalbert3s-projects.vercel.app",
+#         "http://localhost:3000",
+#         "vscode-webview://*"
+#     ],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+#     expose_headers=["*"]
+# )
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://arsenal-azure.vercel.app",
-        "https://arsenal-os2t98dib-jacobalbert3s-projects.vercel.app",
-        "http://localhost:3000"  # Keep this for local development
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

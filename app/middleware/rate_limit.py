@@ -1,35 +1,39 @@
-from fastapi import FastAPI, Request
-from starlette.middleware.base import BaseHTTPMiddleware
-from datetime import datetime, timedelta
-import asyncio
+from starlette.responses import Response
+from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.requests import Request
+import time
 from collections import defaultdict
+import asyncio
 
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app: FastAPI, requests_per_minute: int = 60):
-        super().__init__(app)
+class RateLimitMiddleware:
+    def __init__(self, app: ASGIApp, requests_per_minute: int = 50000):
+        self.app = app
         self.requests_per_minute = requests_per_minute
-        self.request_counts = defaultdict(list)
-    
-    async def dispatch(self, request: Request, call_next):
-        client_ip = request.client.host
-        now = datetime.now()
-        
-        # Clean old requests
-        self.request_counts[client_ip] = [
-            timestamp for timestamp in self.request_counts[client_ip]
-            if timestamp > now - timedelta(minutes=1)
-        ]
-        
-        # Check rate limit
-        if len(self.request_counts[client_ip]) >= self.requests_per_minute:
-            return Response(
-                content="Rate limit exceeded",
-                status_code=429,
-                headers={"Retry-After": "60"}
-            )
-        
-        # Add current request
-        self.request_counts[client_ip].append(now)
-        
-        response = await call_next(request)
-        return response
+        self.requests = defaultdict(list)
+        self._cleanup_task = None
+
+    # async def __call__(self, scope: Scope, receive: Receive, send: Send):
+    #     if scope["type"] != "http":
+    #         return await self.app(scope, receive, send)
+
+    #     request = Request(scope)
+    #     client_ip = request.client.host if request.client else "unknown"
+
+    #     # Clean old requests
+    #     now = time.time()
+    #     self.requests[client_ip] = [req_time for req_time in self.requests[client_ip] 
+    #                               if now - req_time < 60]
+
+    #     # Check rate limit
+    #     if len(self.requests[client_ip]) >= self.requests_per_minute:
+    #         response = Response(
+    #             status_code=429,
+    #             content="Too many requests",
+    #             media_type="text/plain"
+    #         )
+    #         await response(scope, receive, send)
+    #         return
+
+    #     # Add current request
+    #     self.requests[client_ip].append(now)
+    #     await self.app(scope, receive, send)
