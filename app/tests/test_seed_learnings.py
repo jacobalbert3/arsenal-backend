@@ -40,6 +40,7 @@ def get_embedding(text):
 # Get database configuration based on environment
 def get_db_config():
     database_url = os.getenv("DATABASE_URL")
+    print(f"Database URL: {database_url}")
     if not database_url:
         database_url = f"postgresql://{getpass.getuser()}@localhost/arsenal_db"
   

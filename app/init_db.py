@@ -18,6 +18,9 @@ def initialize_db():
     DATABASE_URL = os.getenv("DATABASE_URL")
     if not DATABASE_URL:
         DATABASE_URL = f"postgresql://{getpass.getuser()}@localhost/arsenal_db"
+    else:
+        # Convert postgres:// to postgresql://
+        DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://')
     print(DATABASE_URL)
 
     # Create engine with SSL required for Railway
@@ -42,8 +45,16 @@ def initialize_db():
             conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
             print("✅ pgvector extension enabled.")
 
-        # WARNING: Only drop tables in local!
-        
+        # Drop existing indexes first
+        with engine.begin() as conn:
+            conn.execute(text("DROP INDEX IF EXISTS idx_learnings_embedding;"))
+            conn.execute(text("DROP INDEX IF EXISTS idx_api_keys_token;"))
+            conn.execute(text("DROP INDEX IF EXISTS idx_api_keys_user_project;"))
+            conn.execute(text("DROP INDEX IF EXISTS idx_learnings_project;"))
+            conn.execute(text("DROP INDEX IF EXISTS idx_learnings_user;"))
+            conn.execute(text("DROP INDEX IF EXISTS idx_favorites_user;"))
+            conn.execute(text("DROP INDEX IF EXISTS idx_projects_user;"))
+
         print("📦 Creating tables...")
         metadata.drop_all(engine)
         metadata.create_all(engine)

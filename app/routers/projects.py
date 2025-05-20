@@ -123,3 +123,15 @@ async def get_functions_for_user(
     query = select(distinct(learnings.c.function_name)).select_from(j).where(projects.c.user_id == user_id)
     results = await database.fetch_all(query)
     return [row[0] for row in results if row[0] is not None]
+
+#get all learnings for a user
+@router.get("/users/{user_id}/learnings")
+async def get_all_learnings_for_user(
+    user_id: int,
+    current_user_id: int = Depends(get_current_user_id)
+):
+    if user_id != current_user_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    query = select(learnings).where(learnings.c.user_id == user_id)
+    results = await database.fetch_all(query)
+    return results
