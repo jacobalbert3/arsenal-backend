@@ -130,8 +130,30 @@ async def get_all_learnings_for_user(
     user_id: int,
     current_user_id: int = Depends(get_current_user_id)
 ):
-    if user_id != current_user_id:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    query = select(learnings).where(learnings.c.user_id == user_id)
-    results = await database.fetch_all(query)
-    return results
+    try:
+        if user_id != current_user_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        
+        query = select(learnings).where(learnings.c.user_id == user_id)
+        results = await database.fetch_all(query)
+        
+        # Properly format results by explicitly creating dictionaries
+        formatted_learnings = []
+        for row in results:
+            learning = {
+                 "id": row["id"],
+                "file_path": row["file_path"],
+                "function_name": row["function_name"],
+                "library_name": row["library_name"],
+                "description": row["description"],
+                "code_snippet": row["code_snippet"]
+            }
+            formatted_learnings.append(learning)
+        
+        return formatted_learnings
+    except Exception as e:
+        print(f"Error fetching learnings: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error while fetching learnings: {str(e)}"
+        )
