@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.middleware.ssl import SSLMiddleware
 
 app = FastAPI()
 
@@ -20,29 +21,34 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Add rate limiting middleware
 #app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
 
-# CORS middlewarewa
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=[
-#         "https://arsenal-azure.vercel.app",
-#         "https://arsenal-os2t98dib-jacobalbert3s-projects.vercel.app",
-#         "http://localhost:3000",
-#         "vscode-webview://*"
-#     ],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-#     expose_headers=["*"]
-# )
+# Add SSL middleware if production
+# if os.getenv("NODE_ENV") == "production":
+#     app.add_middleware(SSLMiddleware)
 
+app.add_middleware(SSLMiddleware)
+# CORS middlewarewa
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://arsenal-azure.vercel.app",
+        "https://arsenal-os2t98dib-jacobalbert3s-projects.vercel.app",
+        "http://localhost:3000",
+    ],
+    allow_origin_regex=r"^vscode-webview://.*$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"]
 )
+
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+#     expose_headers=["*"]
+# )
 
 @app.on_event("startup")
 async def startup():

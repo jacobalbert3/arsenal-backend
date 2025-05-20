@@ -117,7 +117,8 @@ def main():
         cur = conn.cursor()
         
         print("Cleaning up existing test data...")
-        # Remove if already exists
+        # Remove in correct order due to foreign key constraints
+        cur.execute("DELETE FROM api_keys WHERE user_id IN (SELECT id FROM users WHERE email = %s)", (EMAIL,))
         cur.execute("DELETE FROM learnings WHERE user_id IN (SELECT id FROM users WHERE email = %s)", (EMAIL,))
         cur.execute("DELETE FROM projects WHERE user_id IN (SELECT id FROM users WHERE email = %s)", (EMAIL,))
         cur.execute("DELETE FROM users WHERE email = %s", (EMAIL,))

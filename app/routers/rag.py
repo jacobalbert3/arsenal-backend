@@ -35,7 +35,7 @@ class QueryRequest(BaseModel):
         return v
 
 # Add this constant at the top
-MONTHLY_QUERY_LIMIT = 100 # Adjust as needed
+MONTHLY_QUERY_LIMIT = 300# Adjust as needed
 
 # Add this helper function
 async def check_and_update_usage(user_id: int, database) -> bool:
@@ -106,20 +106,20 @@ async def get_current_usage(user_id: int, database) -> dict:
 
 @router.post("/rag/query")
 async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_current_user_id)):
-    if request.mode == "powered":
-        # Check rate limit for powered mode
-        can_make_request = await check_and_update_usage(current_user_id, database)
-        if not can_make_request:
-            usage = await get_current_usage(current_user_id, database)
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "message": "Monthly query limit reached",
-                    "limit": MONTHLY_QUERY_LIMIT,
-                    "current_usage": usage["current_usage"],
-                    "month": usage["month"]
-                }
-            )
+    
+    # Check rate limit for powered mode
+    can_make_request = await check_and_update_usage(current_user_id, database)
+    if not can_make_request:
+        usage = await get_current_usage(current_user_id, database)
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "message": "Monthly query limit reached",
+                "limit": MONTHLY_QUERY_LIMIT,
+                "current_usage": usage["current_usage"],
+                "month": usage["month"]
+            }
+        )
     
     # Input validation
     if not request.query.strip():

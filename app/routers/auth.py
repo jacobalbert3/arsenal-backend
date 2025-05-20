@@ -28,11 +28,24 @@ async def signup(data: dict):
         password = data.get("password")
 
         if not email or not password:
-            raise HTTPException(status_code=400, detail="Email and password required")
+            raise HTTPException(
+                status_code=400, 
+                detail={
+                    "message": "Email and password required",
+                    "type": "validation_error"
+                }
+            )
 
         existing = await database.fetch_one(users.select().where(users.c.email == email))
         if existing:
-            raise HTTPException(status_code=400, detail="User already exists")
+            raise HTTPException(
+                status_code=400, 
+                detail={
+                    "message": "User already exists",
+                    "type": "duplicate_user",
+                    "field": "email"
+                }
+            )
 
         hashed_password = bcrypt.hash(password)
         query = users.insert().values(email=email, password=hashed_password)
@@ -45,9 +58,17 @@ async def signup(data: dict):
             "user_id": user_id,
             "access_token": access_token
         }
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        print(f"Signup error: {str(e)}")  # This will log to Railway logs
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Signup error: {str(e)}")
+        raise HTTPException(
+            status_code=500, 
+            detail={
+                "message": str(e),
+                "type": "server_error"
+            }
+        )
 
 
 @router.post("/login")
