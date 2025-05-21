@@ -30,8 +30,8 @@ app.add_middleware(SSLMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://arsenal-azure.vercel.app",
-        "https://arsenal-os2t98dib-jacobalbert3s-projects.vercel.app",
+        "https://www.arsenal-dev.com",
+        "https://arsenal-dev.com",
         "http://localhost:3000",
     ],
     allow_origin_regex=r"^vscode-webview://.*$",
