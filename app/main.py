@@ -10,21 +10,21 @@ import os
 from datetime import datetime
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.ssl import SSLMiddleware
+from fastapi.responses import JSONResponse
+from fastapi import Request
 
 app = FastAPI()
 
 load_dotenv()
 
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^(https:\/\/(www\.)?arsenal-dev\.com|http:\/\/localhost:\d+|vscode-webview:\/\/.*?)$",
+    allow_origin_regex=r"^(https:\/\/(www\.)?arsenal-dev\.com|http:\/\/localhost:\d+|vscode-webview:\/\/[^/]+)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"]
 )
-
 # Add security headers middleware BEFORE CORS
 app.add_middleware(SecurityHeadersMiddleware)
 
@@ -34,11 +34,8 @@ app.add_middleware(SecurityHeadersMiddleware)
 # Add SSL middleware if production
 # if os.getenv("NODE_ENV") == "production":
 #     app.add_middleware(SSLMiddleware)
-
 app.add_middleware(SSLMiddleware)
 # CORS middlewarewa
-
-
 
 # app.add_middleware(
 #     CORSMiddleware,
@@ -95,5 +92,18 @@ async def health_check():
             "error": str(e),
             "timestamp": datetime.utcnow().isoformat()
         }
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc)},
+        headers={
+            "Access-Control-Allow-Origin": request.headers.get("origin", "*"),
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Allow-Methods": "*",
+            "Access-Control-Allow-Headers": "*",
+        }
+    )
 
 port = int(os.getenv("PORT", 8000))
