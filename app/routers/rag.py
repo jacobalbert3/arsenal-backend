@@ -7,6 +7,7 @@ from app.db import database
 import logging
 from datetime import datetime
 from app.models.usage_limits import usage_limits
+import traceback
 
 # Add logging configuration
 logging.basicConfig(
@@ -27,35 +28,27 @@ class QueryRequest(BaseModel):
     mode: str = "simple"  # or "powered"
     conversation_history: list[Message] = []
 
-    # Add validator for query length
     @validator('query')
     def validate_query_length(cls, v):
         if len(v) > 500:
             raise ValueError("Query length cannot exceed 500 characters")
         return v
 
-# Add this constant at the top
-MONTHLY_QUERY_LIMIT = 300# Adjust as needed
+MONTHLY_QUERY_LIMIT = 300
 
-# Add this helper function
 async def check_and_update_usage(user_id: int, database) -> bool:
-    # Get current month in YYYY-MM format
     current_month_key = datetime.utcnow().strftime("%Y-%m")
-    
-    # Try to get existing usage record
     query = """
     SELECT powered_queries_count 
     FROM usage_limits 
     WHERE user_id = :user_id AND month_key = :month_key
     """
-    
     result = await database.fetch_one(query, {
         "user_id": user_id,
         "month_key": current_month_key
     })
-    
+
     if not result:
-        # Create new month record if doesn't exist
         query = """
         INSERT INTO usage_limits (user_id, month_key, powered_queries_count)
         VALUES (:user_id, :month_key, 1)
@@ -66,11 +59,10 @@ async def check_and_update_usage(user_id: int, database) -> bool:
             "month_key": current_month_key
         })
         return True
-    
+
     if result['powered_queries_count'] >= MONTHLY_QUERY_LIMIT:
         return False
-        
-    # Update usage count
+
     query = """
     UPDATE usage_limits 
     SET powered_queries_count = powered_queries_count + 1
@@ -80,24 +72,21 @@ async def check_and_update_usage(user_id: int, database) -> bool:
         "user_id": user_id,
         "month_key": current_month_key
     })
-    
+
     return True
 
-# Optional: Add a function to get current usage
 async def get_current_usage(user_id: int, database) -> dict:
     current_month_key = datetime.utcnow().strftime("%Y-%m")
-    
     query = """
     SELECT powered_queries_count 
     FROM usage_limits 
     WHERE user_id = :user_id AND month_key = :month_key
     """
-    
     result = await database.fetch_one(query, {
         "user_id": user_id,
         "month_key": current_month_key
     })
-    
+
     return {
         "current_usage": result['powered_queries_count'] if result else 0,
         "limit": MONTHLY_QUERY_LIMIT,
@@ -106,8 +95,7 @@ async def get_current_usage(user_id: int, database) -> dict:
 
 @router.post("/rag/query")
 async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_current_user_id)):
-    
-    # Check rate limit for powered mode
+
     can_make_request = await check_and_update_usage(current_user_id, database)
     if not can_make_request:
         usage = await get_current_usage(current_user_id, database)
@@ -120,12 +108,10 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
                 "month": usage["month"]
             }
         )
-    
-    # Input validation
+
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
-        
-    # Get embeddings for the query
+
     try:
         query_vector = await embed(request.query)
     except Exception as e:
@@ -134,7 +120,6 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
 
     vector_str = f"'[{','.join(map(str, query_vector))}]'"
 
-    # Retrieve top 5 most similar learnings
     sql = f"""
     SELECT id, description, code_snippet, function_name, library_name,
            embedding <-> {vector_str}::vector as similarity
@@ -144,21 +129,22 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
     LIMIT 3
     """
     rows = await database.fetch_all(sql, {"user_id": current_user_id})
-    
-    # Add detailed logging for similarity scores
+
     logger.info(f"Query: {request.query}")
     logger.info(f"Raw similarity scores: {[{'description': r['description'], 'similarity': r['similarity']} for r in rows]}")
 
-    # Filter for high similarity results
     relevant_results = [r for r in rows if r['similarity'] < 1.4]
     logger.info(f"Number of relevant results (similarity < 1.4): {len(relevant_results)}")
 
     if request.mode == "simple":
         if not relevant_results:
             logger.info("No results met similarity threshold")
-            return []  # Return empty array for frontend to handle
-            
-        # Format results in a more readable way
+            return [{
+                "title": "No learnings found",
+                "details": ["Try logging some learnings to see results here."],
+                "code_snippet": ""
+            }]
+
         formatted_results = []
         for r in relevant_results:
             result = {
@@ -166,34 +152,34 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
                 "details": [],
                 "code_snippet": r['code_snippet']
             }
-            
             if r['function_name']:
                 result["details"].append(f"🔧 Function: {r['function_name']}")
             if r['library_name']:
                 result["details"].append(f"📚 Library: {r['library_name']}")
-            # Add similarity score with better normalization
             result["details"].append(f"✨ Match: {max(0, min(100, (1 - r['similarity']/2) * 100)):.0f}%")
-            
             formatted_results.append(result)
-            
+
         return formatted_results
 
     # Powered mode
-    # Format conversation history
     conversation_context = "\n".join([
         f"{'User' if msg.is_user else 'Assistant'}: {msg.content}"
         for msg in request.conversation_history
-    ])
-    
-    # Create context from relevant learnings (if any)
-    learnings_context = ""
-    if relevant_results:
-        learnings_context = "Relevant code learnings that might help answer the question:\n" + "\n\n".join([
+    ]) or "No prior conversation available."
+
+    learnings_context = (
+        "Relevant code learnings that might help answer the question:\n" +
+        "\n\n".join([
             f"Snippet {i+1}:\nDescription: {r['description']}\nCode:\n{r['code_snippet']}"
             for i, r in enumerate(relevant_results)
         ])
-    else:
-        learnings_context = "No closely matching code examples found in your learnings."
+        if relevant_results else
+        "No closely matching code examples found in your learnings."
+    )
+
+    if not relevant_results and not request.conversation_history:
+        logger.warning(f"User {current_user_id} submitted query with no learnings and no conversation.")
+        return {"response": "I couldn't find any context or past learnings to help. Try logging more learnings or asking a more general question."}
 
     try:
         final_prompt = f"""You are a coding assistant focused on helping users understand and work with their code. You have access to their previous conversations and some of their code learnings.
@@ -223,12 +209,9 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
         7. If no code learnings are available, provide a helpful answer based on your general knowledge.
 
         Answer:"""
-        
+
         response = await call_gpt4_llm(final_prompt)
         return {"response": response}
     except Exception as e:
-        logger.error(f"LLM call failed: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to generate response: {str(e)}"
-        )
+        logger.error("LLM call failed:\n" + traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Failed to generate a response.")
