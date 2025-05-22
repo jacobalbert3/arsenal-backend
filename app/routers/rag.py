@@ -178,9 +178,9 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
         "No closely matching code examples found in your learnings."
     )
 
+
     if not relevant_results and not request.conversation_history:
-        logger.warning(f"User {current_user_id} submitted query with no learnings and no conversation.")
-        return {"response": "I couldn't find any context or past learnings to help. Try logging more learnings or asking a more general question."}
+        logger.info(f"User {current_user_id} submitted query with no learnings and no conversation. Proceeding with general LLM response.")
 
     try:
         final_prompt = f"""You are a coding assistant focused on helping users understand and work with their code. You have access to their previous conversations and some of their code learnings.
