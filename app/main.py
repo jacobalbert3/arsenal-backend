@@ -18,7 +18,7 @@ load_dotenv()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^(https:\/\/(www\.)?arsenal-dev\.com|http:\/\/localhost:3000|vscode-webview:\/\/.*)$",
+    allow_origin_regex=r"^(https:\/\/(www\.)?arsenal-dev\.com|http:\/\/localhost:\d+|vscode-webview:\/\/.*?)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
