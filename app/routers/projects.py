@@ -7,6 +7,9 @@ from app.models.learnings import learnings
 from app.auth.deps import get_current_user_id
 from fastapi import Depends
 from typing import Optional
+from app.services.embedder import embed
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -84,14 +87,24 @@ async def create_learning(
     if ':' in file_path:  # e.g., C:/Users/...
         file_path = '/'.join(file_path.split('/')[1:])
     
+       # Generate embedding using both description and code
+    full_text = f"{learning.description}\n\n{learning.code_snippet}"
+    try:
+        vector = await embed(full_text)
+    except Exception as e:
+        logger.error(f"Failed to embed learning: {e}")
+        raise HTTPException(status_code=500, detail="Embedding failed")
+
+    # Insert learning with embedding
     query = learnings.insert().values(
         project_id=project_id,
-        file_path=file_path,  # Store the relative path
+        file_path=file_path,
         function_name=learning.function_name,
         library_name=learning.library_name,
         description=learning.description,
         code_snippet=learning.code_snippet,
-        user_id=current_user_id
+        user_id=current_user_id,
+        embedding=vector
     )
     learning_id = await database.execute(query)
     return {"id": learning_id, "message": "Learning logged!"}
