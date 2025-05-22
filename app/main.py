@@ -27,28 +27,28 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(SSLMiddleware)
 # CORS middlewarewa
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://www.arsenal-dev.com",
-        "https://arsenal-dev.com",
-        "http://localhost:3000",
-    ],
-    allow_origin_regex=r"^vscode-webview://.*$",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["*"]
-)
-
 # app.add_middleware(
 #     CORSMiddleware,
-#     allow_origins=["*"],
+#     allow_origins=[
+#         "https://www.arsenal-dev.com",
+#         "https://arsenal-dev.com",
+#         "http://localhost:3000",
+#     ],
+#     allow_origin_regex=r"^vscode-webview://.*$",
 #     allow_credentials=True,
 #     allow_methods=["*"],
 #     allow_headers=["*"],
 #     expose_headers=["*"]
 # )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"]
+)
 
 @app.on_event("startup")
 async def startup():
