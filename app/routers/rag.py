@@ -145,16 +145,18 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
     """
     rows = await database.fetch_all(sql, {"user_id": current_user_id})
     
-    # Add detailed logging
+    # Add detailed logging for similarity scores
     logger.info(f"Query: {request.query}")
-    logger.info(f"Similarity scores: {[{'description': r['description'], 'similarity': r['similarity']} for r in rows]}")
+    logger.info(f"Raw similarity scores: {[{'description': r['description'], 'similarity': r['similarity']} for r in rows]}")
+
+    # Filter for high similarity results
+    relevant_results = [r for r in rows if r['similarity'] < 1.4]
+    logger.info(f"Number of relevant results (similarity < 1.4): {len(relevant_results)}")
 
     if request.mode == "simple":
-        # Filter for high similarity results
-        relevant_results = [r for r in rows if r['similarity'] < 1.4]
-        
         if not relevant_results:
-            return []  # Return empty array instead of error message
+            logger.info("No results met similarity threshold")
+            return []  # Return empty array for frontend to handle
             
         # Format results in a more readable way
         formatted_results = []
@@ -165,7 +167,6 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
                 "code_snippet": r['code_snippet']
             }
             
-            # Add function and library info if they exist
             if r['function_name']:
                 result["details"].append(f"🔧 Function: {r['function_name']}")
             if r['library_name']:
@@ -177,20 +178,22 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
             
         return formatted_results
 
-    # Powered mode with conversation history
-    relevant_results = [r for r in rows if r['similarity'] < 1.4]
-    
-    # Format conversation history for the prompt
+    # Powered mode
+    # Format conversation history
     conversation_context = "\n".join([
         f"{'User' if msg.is_user else 'Assistant'}: {msg.content}"
         for msg in request.conversation_history
     ])
     
-    # Create context from relevant learnings
-    learnings_context = "\n\n".join([
-        f"Snippet {i+1}:\nDescription: {r['description']}\nCode:\n{r['code_snippet']}"
-        for i, r in enumerate(relevant_results)
-    ])
+    # Create context from relevant learnings (if any)
+    learnings_context = ""
+    if relevant_results:
+        learnings_context = "Relevant code learnings that might help answer the question:\n" + "\n\n".join([
+            f"Snippet {i+1}:\nDescription: {r['description']}\nCode:\n{r['code_snippet']}"
+            for i, r in enumerate(relevant_results)
+        ])
+    else:
+        learnings_context = "No closely matching code examples found in your learnings."
 
     try:
         final_prompt = f"""You are a coding assistant focused on helping users understand and work with their code. You have access to their previous conversations and some of their code learnings.
@@ -198,7 +201,6 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
         Previous conversation:
         {conversation_context}
 
-        Relevant code learnings that might help answer the question:
         {learnings_context}
 
         Current question: {request.query}
@@ -218,6 +220,7 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
         4. If the question is a follow-up, maintain context from the previous conversation.
         5. If you reference a code learning, explain why it's relevant to the question.
         6. Stay focused on programming-related topics.
+        7. If no code learnings are available, provide a helpful answer based on your general knowledge.
 
         Answer:"""
         
