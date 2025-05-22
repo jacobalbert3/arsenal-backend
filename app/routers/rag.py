@@ -133,7 +133,8 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
     logger.info(f"Query: {request.query}")
     logger.info(f"Raw similarity scores: {[{'description': r['description'], 'similarity': r['similarity']} for r in rows]}")
 
-    relevant_results = [r for r in rows if r['similarity'] < 1.4]
+    relevant_results = [r for r in rows if r['similarity'] is not None and r['similarity'] < 1.4]
+
     logger.info(f"Number of relevant results (similarity < 1.4): {len(relevant_results)}")
 
     if request.mode == "simple":
