@@ -213,6 +213,7 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
         Answer:"""
 
         response = await call_gpt4_llm(final_prompt)
+        print(response)
         return {"response": response}
     except Exception as e:
         logger.error("LLM call failed:\n" + traceback.format_exc())
