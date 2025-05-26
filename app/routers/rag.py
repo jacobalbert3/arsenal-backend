@@ -205,7 +205,7 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
            [/CODE_LEARNING]
         3. If none of the code learnings are relevant to the question, don't mention them at all.
         4. If the question is a follow-up, maintain context from the previous conversation.
-        5. If you reference a code learning, explain why it's relevant to the question, using specific details from the code snippet when useful. 
+        5. If you reference a code learning, explain why it's relevant to the question, using specific details from the code snippet when useful. Wrap any code used in response in ``` to make them more readable.
         6. When referencing a learning, use the full code block using the format above. When referencing a specific part of the code, you 
         7. Stay focused on programming-related topics.
         8. If no code learnings are available, provide a helpful answer based on your general knowledge.
