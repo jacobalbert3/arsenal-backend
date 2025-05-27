@@ -171,7 +171,7 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
     learnings_context = (
         "Relevant code learnings that might help answer the question:\n" +
         "\n\n".join([
-            f"Snippet {i+1}:\nDescription: {r['description']}\nCode:\n```\n{r['code_snippet']}\n```"
+            f"Snippet {i+1}:\nDescription: {r['description'] or 'No description'}\nCode:\n```\n{r['code_snippet'] or 'No code provided'}\n```"
             for i, r in enumerate(relevant_results)
         ])
         if relevant_results else
