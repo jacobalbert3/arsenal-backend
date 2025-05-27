@@ -171,7 +171,7 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
     learnings_context = (
         "Relevant code learnings that might help answer the question:\n" +
         "\n\n".join([
-            f"Snippet {i+1}:\nDescription: {r['description']}\nCode:\n{r['code_snippet']}"
+            f"Snippet {i+1}:\nDescription: {r['description']}\nCode:\n```\n{r['code_snippet']}\n```"
             for i, r in enumerate(relevant_results)
         ])
         if relevant_results else
@@ -194,7 +194,7 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
 
         Instructions:
         1. Answer the question directly and concisely.
-        2. When referencing code learnings, focus on the specific part of the code that is relevant to the question.
+        2. When referencing code learnings, focus on the specific part of the code that is relevant to the question. WRAP THE CODE IN ``` TO MAKE IT MORE READABLE.
         3. If none of the code learnings are relevant to the question, don't mention them at all.
         4. If the question is a follow-up, maintain context from the previous conversation.
         5. If you reference a code learning, explain why it's relevant to the question, using specific details from the code snippet when useful. Wrap any code used in response in ``` to make them more readable.
