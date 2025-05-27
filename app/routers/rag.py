@@ -136,7 +136,7 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
     relevant_results = [r for r in rows if r['similarity'] is not None and r['similarity'] < 1.4]
 
     logger.info(f"Number of relevant results (similarity < 1.4): {len(relevant_results)}")
-    logger.info(f"Relevant results structure: {[{k: v for k, v in r.items()} for r in relevant_results]}")
+    logger.info(f"Relevant results structure: {[dict(r) for r in relevant_results]}")
 
     if request.mode == "simple":
         if not relevant_results:
