@@ -51,4 +51,5 @@ async def get_current_user_id(
     elif auth_type.lower() == "apikey":
         return await get_user_from_api_key(token)
     
+    
     raise HTTPException(status_code=401, detail="Invalid authorization type")
