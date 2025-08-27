@@ -2,4 +2,7 @@
 builder = "nixpacks"
 
 [build.environment]
-NIXPACKS_PKGS = "postgresql postgresql-dev" 
+NIXPACKS_PKGS = "postgresql postgresql-dev"
+
+[deploy]
+startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT" 
