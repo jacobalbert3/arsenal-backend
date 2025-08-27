@@ -99,6 +99,11 @@ async def get_current_usage(user_id: int, database) -> dict:
 @router.post("/rag/query")
 @limiter.limit("30/minute")  # Rate limit AI queries - they're expensive!
 async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_current_user_id)):
+    logger.info(f"=== RAG QUERY START ===")
+    logger.info(f"User ID: {current_user_id}")
+    logger.info(f"Query: {request.query}")
+    logger.info(f"Mode: {request.mode}")
+    logger.info(f"Conversation history length: {len(request.conversation_history)}")
 
     can_make_request = await check_and_update_usage(current_user_id, database)
     if not can_make_request:
@@ -116,14 +121,18 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty")
 
+    logger.info("About to generate embedding...")
     try:
         query_vector = await embed(request.query)
+        logger.info(f"Embedding generated successfully, length: {len(query_vector)}")
     except Exception as e:
         logger.error(f"Embedding generation failed: {e}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Failed to process query")
 
     #FORMAT THE QUERY VECTOR
     vector_str = f"'[{','.join(map(str, query_vector))}]'"
+    logger.info("About to execute database query...")
 
     #finds the cosine similarity between the query vector and the learnings vector
     sql = f"""
@@ -134,12 +143,19 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
     ORDER BY similarity
     LIMIT 3
     """
-    rows = await database.fetch_all(sql, {"user_id": current_user_id})
+    try:
+        rows = await database.fetch_all(sql, {"user_id": current_user_id})
+        logger.info(f"Database query successful, found {len(rows)} results")
+    except Exception as e:
+        logger.error(f"Database query failed: {e}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail="Database query failed")
 
     logger.info(f"Query: {request.query}")
     logger.info(f"Raw similarity scores: {[{'description': r['description'], 'similarity': r['similarity']} for r in rows]}")
 
     relevant_results = [r for r in rows if r['similarity'] is not None and r['similarity'] < 1.4]
+    logger.info(f"Relevant results count: {len(relevant_results)}")
 
     if request.mode == "simple":
         if not relevant_results:
@@ -164,9 +180,11 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
             result["details"].append(f"Match: {max(0, min(100, (1 - r['similarity']/2) * 100)):.0f}%")
             formatted_results.append(result)
 
+        logger.info("=== RAG QUERY END (SIMPLE MODE) ===")
         return formatted_results
 
     # Powered mode
+    logger.info("Processing powered mode...")
     conversation_context = "\n".join([
         f"{'User' if msg.is_user else 'Assistant'}: {msg.content}"
         for msg in request.conversation_history
@@ -187,6 +205,7 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
         logger.info(f"User {current_user_id} submitted query with no learnings and no conversation. Proceeding with general LLM response.")
 
     #FINAL PROMPT FOR THE LLM
+    logger.info("About to call LLM...")
     try:
         final_prompt = f"""You are a coding assistant focused on helping users understand and work with their code. You have access to their previous conversations and some of their code learnings.
 
@@ -210,8 +229,12 @@ async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_cu
         Answer:"""
 
         response = await call_gpt4_llm(final_prompt)
+        logger.info("LLM call successful")
         print(response)
+        logger.info("=== RAG QUERY END (POWERED MODE) ===")
         return {"response": response}
     except Exception as e:
-        logger.error("LLM call failed:\n" + traceback.format_exc())
+        logger.error("LLM call failed:")
+        logger.error(f"Error: {e}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Failed to generate a response.")
