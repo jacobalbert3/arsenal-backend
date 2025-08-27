@@ -37,7 +37,21 @@ async def list_projects(user_id: int, current_user_id: int = Depends(get_current
     results = await database.fetch_all(query)
     return results
 
-#CREATE PROJECT FOR USER: (used ikn the )
+#GET PROJECT BY ID: used by CLI to verify project ownership
+@router.get("/projects/{project_id}")
+async def get_project(
+    project_id: int,
+    current_user_id: int = Depends(get_current_user_id)
+):
+    # Check if project exists and is owned by current user
+    project = await database.fetch_one(
+        select(projects).where(projects.c.id == project_id, projects.c.user_id == current_user_id)
+    )
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found or not owned by you")
+    return project
+
+#CREATE PROJECT FOR USER
 @router.post("/users/{user_id}/projects")
 async def create_project(
     user_id: int,

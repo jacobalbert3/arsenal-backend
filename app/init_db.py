@@ -10,6 +10,13 @@ from app.models.api_keys import api_keys
 from app.models.usage_limits import usage_limits
 
 from dotenv import load_dotenv
+
+#INSTRUCTIONS TO REMOVE THE DATABASE
+#railway login; railway link; railway shell; railway run python -m app.init_db
+
+#connect via CLI: railway link; psql $DATABASE_URL
+
+
 #used to get current user (for local db / testing...)
 import getpass
 
