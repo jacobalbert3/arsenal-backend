@@ -1,0 +1,5 @@
+[build]
+builder = "nixpacks"
+
+[build.environment]
+NIXPACKS_PKGS = "postgresql postgresql-dev" 
