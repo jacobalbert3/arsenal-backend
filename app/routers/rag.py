@@ -97,7 +97,6 @@ async def get_current_usage(user_id: int, database) -> dict:
 
 #RAG QUERY ENDPOINT
 @router.post("/rag/query")
-@limiter.limit("30/minute")  # Rate limit AI queries - they're expensive!
 async def query_rag(request: QueryRequest, current_user_id: int = Depends(get_current_user_id)):
     logger.info(f"=== RAG QUERY START ===")
     logger.info(f"User ID: {current_user_id}")
