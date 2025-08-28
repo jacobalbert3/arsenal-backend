@@ -39,7 +39,7 @@ class QueryRequest(BaseModel):
             raise ValueError("Query length cannot exceed 500 characters")
         return v
 
-MONTHLY_QUERY_LIMIT = 300
+MONTHLY_QUERY_LIMIT = 15
 
 #CHECKS IF THE USER HAS REACHED THE MONTHLY QUERY LIMIT
 async def check_and_update_usage(user_id: int, database) -> bool:

@@ -168,6 +168,9 @@ async def create_test_data():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         print("Database connection successful.")
+        
+        # Connect to the database for async operations
+        await database.connect()
 
         # Create test user
         test_user_email = "test@example.com"
@@ -257,6 +260,9 @@ async def create_test_data():
     except Exception as e:
         print(f"Error creating test data: {str(e)}")
         raise
+    finally:
+        # Disconnect from the database
+        await database.disconnect()
 
 if __name__ == "__main__":
     asyncio.run(create_test_data())
