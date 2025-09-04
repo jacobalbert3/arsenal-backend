@@ -37,8 +37,6 @@ app.add_middleware(
 # Security headsers for (XSS, clickjacking, etc)
 app.add_middleware(SecurityHeadersMiddleware)
 
-
-
 #run this function when the app starts
 @app.on_event("startup")
 async def startup():
@@ -59,13 +57,20 @@ app.include_router(rag.router)
 @app.get("/health")
 async def health_check():
     try:
-        # Check database connection
-        await database.fetch_one("SELECT 1")
-        return {
-            "status": "healthy",
-            "database": "connected",
-            "timestamp": datetime.utcnow().isoformat()
-        }
+        # Simple connection check
+        if database.is_connected:
+            return {
+                "status": "healthy",
+                "database": "connected",
+                "timestamp": datetime.utcnow().isoformat(),
+                "note": "Using simple reconnection logic - no periodic monitoring"
+            }
+        else:
+            return {
+                "status": "unhealthy",
+                "database": "disconnected",
+                "timestamp": datetime.utcnow().isoformat()
+            }
     except Exception as e:
         return {
             "status": "unhealthy",

@@ -1,13 +1,11 @@
 from fastapi import Depends, HTTPException, Header
 from jose import JWTError, jwt
 import os
-from app.db import database
+from app.db import database, execute_with_reconnect
 from app.models.api_keys import api_keys
 from sqlalchemy import select, join
 from app.models.users import users
 from dotenv import load_dotenv
-
-
 
 #GOAL: get the user_id from the auth token or api key
 
@@ -22,11 +20,24 @@ async def get_user_from_api_key(api_key: str) -> int:
     query = select(users.c.id).select_from(
         join(api_keys, users, api_keys.c.user_id == users.c.id)
     ).where(api_keys.c.token == api_key)
-    #fetch the first result
-    result = await database.fetch_one(query)
-    if not result:
-        raise HTTPException(status_code=401, detail="Invalid API key")
-    return result['id']
+    
+    try:
+        # Use the simple reconnection wrapper
+        result = await execute_with_reconnect(
+            database.fetch_one, 
+            query
+        )
+        
+        if not result:
+            raise HTTPException(status_code=401, detail="Invalid API key")
+        return result['id']
+        
+    except Exception as e:
+        # If it's an auth error, re-raise it
+        if "Invalid API key" in str(e):
+            raise e
+        # Otherwise, it's a connection error
+        raise HTTPException(status_code=500, detail="Database connection error")
 
 async def get_current_user_id(
     #gets the authorization header from the HTTP request
